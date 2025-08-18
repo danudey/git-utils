@@ -48,11 +48,13 @@ log = logging.getLogger("rich")
 console = Console(highlight=False)
 args = None
 
+
 def link_url(url):
     """
     Take a URL and return a rich-ified link (reduces boilerplate)
     """
     return f"[link={url}]{url}[/link]"
+
 
 def get_gh_token_from_dbus():
     """
@@ -60,8 +62,12 @@ def get_gh_token_from_dbus():
     """
     bus = pydbus.SessionBus()
     secret_service = bus.get(".secrets")
-    items, _ = secret_service.SearchItems([("username",""), ("service","gh:github.com")])
-    _, secret_session = secret_service.OpenSession("plain", pydbus.Variant.new_string(""))
+    items, _ = secret_service.SearchItems(
+        [("username", ""), ("service", "gh:github.com")]
+    )
+    _, secret_session = secret_service.OpenSession(
+        "plain", pydbus.Variant.new_string("")
+    )
 
     secrets = secret_service.GetSecrets(items, secret_session)
     _, _, secret_raw, _ = secrets[items[0]]
@@ -102,6 +108,7 @@ class LocalCache:
     """
     A dumb easy cache to dumbly, easily cache python objects locally
     """
+
     def __init__(self, path):
         self.path = path
         self.path.mkdir(parents=True, exist_ok=True)
@@ -143,6 +150,7 @@ class Semaphore:
     """
     A simple, caching Semaphore interface
     """
+
     def __init__(self, token, hostname):
         self.cache = LocalCache(CACHE_DIR)
         self.session = requests.Session()
@@ -223,12 +231,14 @@ try:
 except FileNotFoundError:
     log.warning(
         "Semaphore command-line configuration was not found at %s. "
-        "Semaphore-related commands will be unavailable.", SEM_CONFIG_FILE_PATH
+        "Semaphore-related commands will be unavailable.",
+        SEM_CONFIG_FILE_PATH,
     )
 except KeyError:
     log.warning(
         "Semaphore configuration could not be read from the semaphore CLI configuration "
-        "file at %s. Semaphore-related commands will be unavailable.", SEM_CONFIG_FILE_PATH
+        "file at %s. Semaphore-related commands will be unavailable.",
+        SEM_CONFIG_FILE_PATH,
     )
 
 
@@ -242,7 +252,7 @@ def get_commit_remote_url(commit_or_ref=None):
         commit_obj = repo.active_branch.commit
     commit_hex = commit_obj.hexsha
 
-    if 'upstream' in repo.remotes:
+    if "upstream" in repo.remotes:
         remote = repo.remotes["upstream"]
     else:
         remote = repo.remotes["origin"]
@@ -299,6 +309,7 @@ def get_remote_ref_name(branch_name=None):
         )
 
     raise RuntimeError("Couldn't get it")
+
 
 def get_file_remote_url(filepath=""):
     """
@@ -357,13 +368,15 @@ def get_file_remote_url(filepath=""):
     else:
         sub_path = "tree"
 
-    github_url = "/".join([
-        GITHUB_BASE_URL,
-        remote_info.project_name,
-        sub_path,
-        remote_info.local_ref.name,
-        target_file_name
-    ])
+    github_url = "/".join(
+        [
+            GITHUB_BASE_URL,
+            remote_info.project_name,
+            sub_path,
+            remote_info.local_ref.name,
+            target_file_name,
+        ]
+    )
 
     if lineno_param:
         github_url = f"{github_url}{lineno_param}"
@@ -451,6 +464,7 @@ def get_tree_remote_url(ref_name=None):
         return
     raise RuntimeError("Couldn't find it")
 
+
 def get_repo_remote_url():
     """
     Get the remote URL for the current repository
@@ -490,14 +504,19 @@ def get_semaphore_project_url(branch_name=None):
 def main():
     parser = argparse.ArgumentParser(formatter_class=HelpFormatter)
 
-    parser.add_argument("command", help="What to run (branch, pr, commit, file, or sem)")
+    parser.add_argument(
+        "command", help="What to run (branch, pr, commit, file, or sem)"
+    )
     parser.add_argument(
         "--closed",
         action="store_true",
         help="When looking for PRs, also look for closed PRs",
     )
     parser.add_argument(
-        "parameter", nargs="*", default=[None], help="The targets to search for links to"
+        "parameter",
+        nargs="*",
+        default=[None],
+        help="The targets to search for links to",
     )
 
     args = parser.parse_args()
@@ -523,5 +542,6 @@ def main():
         case _:
             console.print(f"Unrecognized command: {args.command}")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
