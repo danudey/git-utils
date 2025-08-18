@@ -18,7 +18,7 @@ from types import SimpleNamespace
 # third-party libraries
 
 import git
-import xdg
+from xdg_base_dirs import xdg_cache_home
 import yaml
 import pydbus
 import git.refs
@@ -34,7 +34,7 @@ except ImportError:
     from argparse import HelpFormatter
 
 PROGNAME = "net.cdslash.git-link"
-CACHE_DIR = xdg.xdg_cache_home().joinpath(PROGNAME)
+CACHE_DIR = xdg_cache_home().joinpath(PROGNAME)
 
 FORMAT = "%(message)s"
 logging.basicConfig(
