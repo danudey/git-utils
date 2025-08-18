@@ -20,9 +20,12 @@ from types import SimpleNamespace
 
 import xdg
 import git
+import git.refs
+import git.repo.base
 import yaml
 import pydbus
 import requests
+
 from github import Github
 
 from rich.console import Console
@@ -42,8 +45,8 @@ logging.basicConfig(
 )
 
 log = logging.getLogger("rich")
-
 console = Console(highlight=False)
+args = None
 
 def link_url(url):
     """
@@ -205,7 +208,7 @@ except KeyError:
         )
         sys.exit(1)
 
-repo = git.Repo(search_parent_directories=True)
+repo: git.repo.base.Repo = git.repo.base.Repo(search_parent_directories=True)
 gh = Github(GITHUB_TOKEN)
 
 try:
@@ -245,12 +248,12 @@ def get_commit_remote_url(commit_or_ref=None):
         remote = repo.remotes["origin"]
     remote_url = next(remote.urls)
 
-    github_project_match = GITHUB_PROJECT_PAT.match(remote_url)
-
-    project_name = github_project_match.group("project_name")
-
-    github_url = f"{GITHUB_BASE_URL}/{project_name}/commit/{commit_hex}"
-    console.print(link_url(github_url))
+    if github_project_match := GITHUB_PROJECT_PAT.match(remote_url):
+        project_name = github_project_match.group("project_name")
+        github_url = f"{GITHUB_BASE_URL}/{project_name}/commit/{commit_hex}"
+        console.print(link_url(github_url))
+    else:
+        raise ValueError("Not found")
 
 
 def get_remote_ref_name(branch_name=None):
@@ -258,20 +261,20 @@ def get_remote_ref_name(branch_name=None):
     Get the name of the remote ref for a given branch
     """
     if branch_name is None:
-        local_branch = repo.active_branch
+        local_ref = repo.active_branch
     else:
-        local_branch = repo.branches[branch_name]
+        local_ref = repo.branches[branch_name]
 
-    remote_branch = local_branch.tracking_branch()
+    remote_branch = local_ref.tracking_branch()
     if remote_branch is None:
         remote_name = None
         # TODO: Either check all remotes for a matching branch, or get the first
         # remote specified, whatever it's called (it may not be 'origin')
         console.print(
-            f"Local branch {local_branch} has no tracking branch, searching remotes",
+            f"Local branch {local_ref} has no tracking branch, searching remotes",
         )
         for remote in repo.remotes:
-            if local_branch.name in remote.refs:
+            if local_ref.name in remote.refs:
                 remote_name = remote.name
                 console.print(f"Using detected remote {remote}")
         if remote_name is None:
@@ -285,17 +288,17 @@ def get_remote_ref_name(branch_name=None):
     remote = repo.remote(remote_name)
     remote_url = next(remote.urls)
 
-    github_project_match = GITHUB_PROJECT_PAT.match(remote_url)
+    if github_project_match := GITHUB_PROJECT_PAT.match(remote_url):
+        project_name = github_project_match.group("project_name")
+        github_username = github_project_match.group("github_username")
 
-    project_name = github_project_match.group("project_name")
-    github_username = github_project_match.group("github_username")
+        return SimpleNamespace(
+            project_name=project_name,
+            github_username=github_username,
+            local_ref=local_ref,
+        )
 
-    return SimpleNamespace(
-        project_name=project_name,
-        github_username=github_username,
-        local_branch=local_branch,
-    )
-
+    raise RuntimeError("Couldn't get it")
 
 def get_file_remote_url(filepath=""):
     """
@@ -304,6 +307,8 @@ def get_file_remote_url(filepath=""):
     if filepath is None:
         filepath = ""
     lineno_param = None
+    if not repo.working_dir:
+        raise RuntimeError("Git repo has no working dir")
     # Get the current file path for the root of the git working directory (resolving symlinks, etc)
     git_root = pathlib.Path(repo.working_dir).resolve()
     # Get the current directory we're in (absolute path, resolving symlinks, etc.)
@@ -356,7 +361,7 @@ def get_file_remote_url(filepath=""):
         GITHUB_BASE_URL,
         remote_info.project_name,
         sub_path,
-        remote_info.local_branch.name,
+        remote_info.local_ref.name,
         target_file_name
     ])
 
@@ -366,7 +371,7 @@ def get_file_remote_url(filepath=""):
     console.print(link_url(github_url))
 
 
-def get_pr_remote_url(branch_name=None):
+def get_pr_remote_url(branch_name=None, include_closed=False):
     """
     Get the remote URL for PRs using the specified (or current)
     branch as a HEAD
@@ -374,13 +379,13 @@ def get_pr_remote_url(branch_name=None):
 
     remote_info = get_remote_ref_name(branch_name)
 
-    if args.closed:
+    if include_closed:
         state = "all"
     else:
         state = "open"
     gh_project = gh.get_repo(remote_info.project_name)
     prs = gh_project.get_pulls(
-        head=f"{remote_info.github_username}:{remote_info.local_branch.name}",
+        head=f"{remote_info.github_username}:{remote_info.local_ref.name}",
         state=state,
     )
 
@@ -388,7 +393,7 @@ def get_pr_remote_url(branch_name=None):
 
     if not prs:
         console.print(
-            f"No PRs found for {remote_info.github_username}:{remote_info.local_branch.name}"
+            f"No PRs found for {remote_info.github_username}:{remote_info.local_ref.name}"
         )
     else:
         for pull_request in prs:
@@ -406,28 +411,45 @@ def get_pr_remote_url(branch_name=None):
             )
 
 
-def get_branch_remote_url(branch_name=None):
+def get_tree_remote_url(ref_name=None):
     """
-    Get the remote URL for the specified (or current) branch
+    Get the remote URL for the specified (or current) branch/tag
     """
-    if branch_name is None:
-        local_branch = repo.active_branch
-    else:
-        local_branch = repo.branches[branch_name]
 
-    remote_head = local_branch.tracking_branch().remote_head
-    remote_name = local_branch.tracking_branch().remote_name
+    # Figure out our local ref
+    if ref_name is None:
+        local_ref = repo.active_branch
+    else:
+        if ref_name in repo.tags:
+            local_ref = repo.tags[ref_name]
+        elif ref_name in repo.branches:
+            local_ref = repo.branches[ref_name]
+        else:
+            raise RuntimeError("Couldn't find ref")
+    # If our local ref is a branch, see if we have a tracking branch
+
+    if isinstance(local_ref, git.refs.tag.TagReference):
+        remote_name = repo.remotes[0].name
+        remote_head = local_ref.name
+    elif isinstance(local_ref, git.refs.head.Head):
+        if tracking_branch := local_ref.tracking_branch():
+            remote_head = tracking_branch.remote_head
+            remote_name = tracking_branch.remote_name
+        else:
+            remote_head = local_ref.name
+            remote_name = repo.remotes[0].name
+    else:
+        raise RuntimeError(f"Unknown type {type(local_ref)}")
 
     remote = repo.remote(remote_name)
     remote_url = next(remote.urls)
 
-    github_project_match = GITHUB_PROJECT_PAT.match(remote_url)
-
-    project_name = github_project_match.group("project_name")
-
-    github_url = f"{GITHUB_BASE_URL}/{project_name}/tree/{remote_head}"
-    console.print(link_url(github_url))
-
+    if github_project_match := GITHUB_PROJECT_PAT.match(remote_url):
+        project_name = github_project_match.group("project_name")
+        github_url = f"{GITHUB_BASE_URL}/{project_name}/tree/{remote_head}"
+        console.print(link_url(github_url))
+        return
+    raise RuntimeError("Couldn't find it")
 
 def get_repo_remote_url():
     """
@@ -436,12 +458,11 @@ def get_repo_remote_url():
     remote = repo.remotes[0]
     remote_url = next(remote.urls)
 
-    github_project_match = GITHUB_PROJECT_PAT.match(remote_url)
-
-    project_name = github_project_match.group("project_name")
-
-    github_url = f"{GITHUB_BASE_URL}/{project_name}"
-    console.print(link_url(github_url))
+    if github_project_match := GITHUB_PROJECT_PAT.match(remote_url):
+        project_name = github_project_match.group("project_name")
+        github_url = f"{GITHUB_BASE_URL}/{project_name}"
+        console.print(link_url(github_url))
+    raise RuntimeError("Couldn't find it")
 
 
 def get_semaphore_project_url(branch_name=None):
@@ -449,51 +470,58 @@ def get_semaphore_project_url(branch_name=None):
     Gets the URL to the Semaphore project for the current directory
     """
     if branch_name is None:
-        local_branch = repo.active_branch
+        local_ref = repo.active_branch
     else:
-        local_branch = repo.branches[branch_name]
+        local_ref = repo.branches[branch_name]
 
-    remote_name = local_branch.tracking_branch().remote_name
+    if tracking_branch := local_ref.tracking_branch():
+        remote_name = tracking_branch.remote_name
 
-    remote = repo.remote(remote_name)
-    remote_url = next(remote.urls)
+        remote = repo.remote(remote_name)
+        remote_url = next(remote.urls)
 
-    for project_name, project_data in semaphore.projects.items():
-        if project_data["spec"]["repository"]["url"] == remote_url:
-            print(link_url(semaphore.project_link(project_name)))
+        for project_name, project_data in semaphore.projects.items():
+            if project_data["spec"]["repository"]["url"] == remote_url:
+                print(link_url(semaphore.project_link(project_name)))
+    else:
+        raise RuntimeError("Couldn't get tracking branch")
 
 
-parser = argparse.ArgumentParser(formatter_class=HelpFormatter)
+def main():
+    parser = argparse.ArgumentParser(formatter_class=HelpFormatter)
 
-parser.add_argument("command", help="What to run (branch, pr, commit, file, or sem)")
-parser.add_argument(
-    "--closed",
-    action="store_true",
-    help="When looking for PRs, also look for closed PRs",
-)
-parser.add_argument(
-    "parameter", nargs="*", default=[None], help="The targets to search for links to"
-)
+    parser.add_argument("command", help="What to run (branch, pr, commit, file, or sem)")
+    parser.add_argument(
+        "--closed",
+        action="store_true",
+        help="When looking for PRs, also look for closed PRs",
+    )
+    parser.add_argument(
+        "parameter", nargs="*", default=[None], help="The targets to search for links to"
+    )
 
-args = parser.parse_args()
+    args = parser.parse_args()
 
-match args.command:
-    case "branch":
-        for param in args.parameter:
-            get_branch_remote_url(param)
-    case "pr":
-        for param in args.parameter:
-            get_pr_remote_url(param)
-    case "commit":
-        for param in args.parameter:
-            get_commit_remote_url(param)
-    case "file":
-        for param in args.parameter:
-            get_file_remote_url(param)
-    case "sem":
-        for param in args.parameter:
-            get_semaphore_project_url(param)
-    case "repo":
-        get_repo_remote_url()
-    case _:
-        console.print(f"Unrecognized command: {args.command}")
+    match args.command:
+        case "branch" | "tag" | "ref":
+            for param in args.parameter:
+                get_tree_remote_url(param)
+        case "pr":
+            for param in args.parameter:
+                get_pr_remote_url(param, args.closed)
+        case "commit":
+            for param in args.parameter:
+                get_commit_remote_url(param)
+        case "file":
+            for param in args.parameter:
+                get_file_remote_url(param)
+        case "sem":
+            for param in args.parameter:
+                get_semaphore_project_url(param)
+        case "repo":
+            get_repo_remote_url()
+        case _:
+            console.print(f"Unrecognized command: {args.command}")
+
+if __name__ == '__main__':
+    main()
