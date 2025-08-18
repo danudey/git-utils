@@ -13,21 +13,18 @@ import pathlib
 import argparse
 import datetime
 import functools
-
 from types import SimpleNamespace
 
 # third-party libraries
 
-import xdg
 import git
-import git.refs
-import git.repo.base
+import xdg
 import yaml
 import pydbus
+import git.refs
 import requests
-
+import git.repo.base
 from github import Github
-
 from rich.console import Console
 from rich.logging import RichHandler
 
