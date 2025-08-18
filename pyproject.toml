@@ -3,19 +3,25 @@ name = "git-link"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.11"
 dependencies = [
-    "gitpython==3.1.29",
+    "gitpython==3.1.45",
     "pydbus>=0.6.0",
-    "pygithub==2.1.1",
+    "pygithub==2.7.0",
     "pygobject",
-    "pyxdg==0.27",
-    "pyyaml==6.0.1",
-    "requests==2.31.0",
-    "rich==13.4.2",
-    "rich-argparse==1.1.0",
+    "pyxdg==0.28",
+    "pyyaml==6.0.2",
+    "requests==2.32.4",
+    "rich==14.1.0",
+    "rich-argparse==1.7.1",
     "xdg==6.0.0",
 ]
 
+[project.scripts]
+git-link = "gitlink.link:main"
+
 [tool.uv.sources]
 pygobject = { url = "https://gitlab.gnome.org/GNOME/pygobject/-/archive/3.52.3/pygobject-3.52.3.tar.gz" }
+
+[tool.uv]
+package = true
