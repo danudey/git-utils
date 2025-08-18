@@ -18,7 +18,6 @@ from types import SimpleNamespace
 # third-party libraries
 
 import git
-from xdg_base_dirs import xdg_cache_home
 import yaml
 import pydbus
 import git.refs
@@ -27,6 +26,7 @@ import git.repo.base
 from github import Github
 from rich.console import Console
 from rich.logging import RichHandler
+from xdg_base_dirs import xdg_cache_home
 
 try:
     from rich_argparse import RichHelpFormatter as HelpFormatter
@@ -304,8 +304,8 @@ def get_remote_ref_name(branch_name=None):
             github_username=github_username,
             local_ref=local_ref,
         )
-
-    raise RuntimeError("Couldn't get it")
+    else:
+        raise RuntimeError("Couldn't get it")
 
 
 def get_file_remote_url(filepath=""):
@@ -458,8 +458,8 @@ def get_tree_remote_url(ref_name=None):
         project_name = github_project_match.group("project_name")
         github_url = f"{GITHUB_BASE_URL}/{project_name}/tree/{remote_head}"
         console.print(link_url(github_url))
-        return
-    raise RuntimeError("Couldn't find it")
+    else:
+        raise RuntimeError("Couldn't find it")
 
 
 def get_repo_remote_url():
@@ -473,7 +473,8 @@ def get_repo_remote_url():
         project_name = github_project_match.group("project_name")
         github_url = f"{GITHUB_BASE_URL}/{project_name}"
         console.print(link_url(github_url))
-    raise RuntimeError("Couldn't find it")
+    else:
+        raise RuntimeError("Couldn't find it")
 
 
 def get_semaphore_project_url(branch_name=None):
