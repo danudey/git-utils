@@ -8,11 +8,8 @@ import subprocess
 from enum import IntEnum, auto
 
 import git
-import term
 
-from rich import print
 from rich.console import Console
-from rich.style import Style
 
 class ExitCodes(IntEnum):
     OK = 0
@@ -20,18 +17,6 @@ class ExitCodes(IntEnum):
     DIRECTORYNAMEINVALID = auto()
     NOBRANCHESFOUND = auto()
     SWITCHBRANCHESFAILED = auto()
-
-def get_lowkey_text_color_style() -> str:
-    colors: tuple[int, int, int] = term.getfgcolor()
-    if term.islightmode():
-        # lighten text colour
-        newcolors = [int(c / 256 + 51) for c in colors]
-    else:
-        # darken text colour
-        newcolors = [int(c / 256 - 51) for c in colors]
-    
-    newcolorsstr = ','.join([str(c) for c in newcolors])
-    return f"rgb({newcolorsstr})"
 
 def main():
 
@@ -65,8 +50,6 @@ def main():
 
     branch = branches[0]
 
-    lowkey = get_lowkey_text_color_style()
-
     # Check if we're already on that branch
     if repo.active_branch == branch:
         console.print(f"We already seem to be on branch [cyan not dim]{branch.name}[/cyan not dim], exiting")
@@ -79,7 +62,7 @@ def main():
     try:
         subprocess.check_output(["git","switch","--quiet", branch_name], stderr=subprocess.PIPE)
     except subprocess.CalledProcessError as exc:
-        console.print(f"[not dim]Error while switching branch:")
+        console.print("[not dim]Error while switching branch:")
         for line in exc.stderr.decode().splitlines():
             console.print(f"  [bright_red not dim]{line}[/bright_red not dim]")
         sys.exit(ExitCodes.SWITCHBRANCHESFAILED)
