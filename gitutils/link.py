@@ -19,7 +19,6 @@ from types import SimpleNamespace
 
 import git
 import yaml
-import pydbus
 import git.refs
 import requests
 import git.repo.base
@@ -57,6 +56,7 @@ def get_gh_token_from_dbus():
     """
     Fetch the Github token from SecretServer via dbus
     """
+    import pydbus
     bus = pydbus.SessionBus()
     secret_service = bus.get(".secrets")
     items, _ = secret_service.SearchItems(
