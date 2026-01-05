@@ -494,7 +494,7 @@ def get_semaphore_project_url(branch_name=None):
 
         for project_name, project_data in semaphore.projects.items():
             if project_data["spec"]["repository"]["url"] == remote_url:
-                print(link_url(semaphore.project_link(project_name)))
+                console.print(link_url(semaphore.project_link(project_name)))
     else:
         raise RuntimeError("Couldn't get tracking branch")
 
