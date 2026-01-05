@@ -2,8 +2,10 @@
 
 import re
 import sys
-from enum import IntEnum, auto
+import pathlib
 import subprocess
+
+from enum import IntEnum, auto
 
 import git
 import term
@@ -17,6 +19,7 @@ class ExitCodes(IntEnum):
     NOTGITREPO = auto()
     DIRECTORYNAMEINVALID = auto()
     NOBRANCHESFOUND = auto()
+    SWITCHBRANCHESFAILED = auto()
 
 def get_lowkey_text_color_style() -> str:
     colors: tuple[int, int, int] = term.getfgcolor()
@@ -32,13 +35,13 @@ def get_lowkey_text_color_style() -> str:
 
 def main():
 
-    console = Console(highlight=False, file=sys.stderr)
+    console = Console(highlight=False, file=sys.stderr, style="dim")
 
     pat =  re.compile(r"^(?P<project>.*)-(?P<version>v\d\.\d\d(-[0-9.]+)?)$")
 
     # Get our git repo loaded
     repo = git.Repo(search_parent_directories=True)
-    working_dir = str(repo.working_dir)
+    working_dir = pathlib.Path(repo.working_dir).name
 
     # Check the name of the working directory against our regex
     if match := pat.match(working_dir):
@@ -66,16 +69,20 @@ def main():
 
     # Check if we're already on that branch
     if repo.active_branch == branch:
-        console.print(f"[{lowkey}]We already seem to be on branch [cyan]{branch.name}[/cyan], exiting")
+        console.print(f"We already seem to be on branch [cyan not dim]{branch.name}[/cyan not dim], exiting")
         sys.exit(ExitCodes.OK)
 
     branch_name = branches[0].name
 
-    console.print(f"[{lowkey}]Switching to branch {branch_name}")
-    out = subprocess.check_call(["git","switch","--quiet", branch_name])
+    console.print(f"Switching to branch [cyan not dim]{branch_name}[/cyan not dim]")
 
-    if out != 0:
-        console.print(f"Running `git switch` failed!")
+    try:
+        subprocess.check_output(["git","switch","--quiet", branch_name], stderr=subprocess.PIPE)
+    except subprocess.CalledProcessError as exc:
+        console.print(f"[not dim]Error while switching branch:")
+        for line in exc.stderr.decode().splitlines():
+            console.print(f"  [bright_red not dim]{line}[/bright_red not dim]")
+        sys.exit(ExitCodes.SWITCHBRANCHESFAILED)
 
 if __name__ == '__main__':
     main()
