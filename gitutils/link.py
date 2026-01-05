@@ -23,7 +23,7 @@ import pydbus
 import git.refs
 import requests
 import git.repo.base
-from github import Github
+from github import Github, Auth as GithubAuth
 from rich.console import Console
 from rich.logging import RichHandler
 from xdg_base_dirs import xdg_cache_home
@@ -214,7 +214,7 @@ except KeyError:
         sys.exit(1)
 
 repo: git.repo.base.Repo = git.repo.base.Repo(search_parent_directories=True)
-gh = Github(GITHUB_TOKEN)
+gh = Github(auth=GithubAuth.Token(GITHUB_TOKEN))
 
 try:
     yaml_file = pathlib.Path(SEM_CONFIG_FILE_PATH).expanduser().open(encoding="utf8")
