@@ -3,6 +3,7 @@
 """
 A simple script to get links for branches, commits, or PRs
 """
+from typing import Any
 
 import os
 import re
@@ -20,7 +21,7 @@ from types import SimpleNamespace
 import git
 import yaml
 import git.refs
-import requests
+import niquests
 import git.repo.base
 from github import Github, Auth as GithubAuth
 from rich.console import Console
@@ -123,7 +124,7 @@ class LocalCache:
             return True
         return False
 
-    def get(self, key):
+    def get(self, key) -> Any:
         """
         Gets an object from the cache (unless it's too old)
         """
@@ -150,7 +151,7 @@ class Semaphore:
 
     def __init__(self, token, hostname):
         self.cache = LocalCache(CACHE_DIR)
-        self.session = requests.Session()
+        self.session = niquests.Session()
         self.session.headers.update({"Authorization": f"Token {token}"})
         self.hostname = hostname
         self.__projects = {}
